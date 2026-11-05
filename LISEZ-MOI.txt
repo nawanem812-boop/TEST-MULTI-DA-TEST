@@ -1,0 +1,5 @@
+MULTI-DA v15 — correctifs (index.html + service-worker.js à remplacer)
+- DATES : les jalons J+3, J+7, J+30… étaient calculés avec un décalage d'un jour (conversion UTC). Corrigé en date locale. Les dates déjà enregistrées ne sont pas modifiées ; les révisions futures tombent au bon jour.
+- IMPORT : n'efface plus Routine ni LIFE-PROJECT, ni les données TEST ; sauvegarde automatique téléchargée avant la restauration ; l'export ignore les données TEST et indique version et date.
+- SERVICE WORKER : ne supprime plus les caches des autres applications.
+- v15 : ajout du bouton 🧭 « Mon écosystème » (liens vers Routine et LIFE-PROJECT avec statut).
