@@ -1,4 +1,5 @@
-const CACHE_NAME = "programme-major-v15-da";
+const CACHE_BASE = "programme-major", CACHE_PFX = /test/i.test(self.registration.scope) ? "test-"+CACHE_BASE : CACHE_BASE;
+const CACHE_NAME = CACHE_PFX + "-v17-da";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -20,7 +21,7 @@ self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
-        keys.filter(key => key.startsWith('programme-major') && key !== CACHE_NAME)
+        keys.filter(key => key.startsWith(CACHE_PFX) && key !== CACHE_NAME)
             .map(key => caches.delete(key))
       )
     )

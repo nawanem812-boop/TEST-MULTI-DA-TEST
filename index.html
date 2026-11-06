@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
+<head><script>
+var TESTM=/test/i.test(location.pathname);window.__rawLS=window.localStorage;
+function FOREIGN(k){return k.indexOf('test:')===0||k.indexOf('eco:')===0||['routine:v1','majorpromo_v3','majorpromo_v2','life-theme','rev:cfg'].indexOf(k)>=0}
+if(TESTM){(function(){var ls=window.__rawLS,P='test:';function ks(){var o=[];for(var i=0;i<ls.length;i++){var k=ls.key(i);if(k.indexOf(P)===0)o.push(k)}return o}
+var px={getItem:function(k){return ls.getItem(P+k)},setItem:function(k,v){ls.setItem(P+k,v)},removeItem:function(k){ls.removeItem(P+k)},clear:function(){ks().forEach(function(k){ls.removeItem(k)})},key:function(i){var a=ks();return a[i]!=null?a[i].slice(P.length):null}};
+Object.defineProperty(px,'length',{get:function(){return ks().length}});Object.defineProperty(window,'localStorage',{get:function(){return px},configurable:true})})()}
+</script>
 <script>try{document.documentElement.setAttribute("data-theme",localStorage.getItem("da-theme")||"rose")}catch(e){document.documentElement.setAttribute("data-theme","rose")}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -326,7 +332,10 @@
   .edit-actions button{flex:1;padding:6px;border-radius:6px;border:none;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;}
   .edit-save{background:var(--teal);color:#fff;}
   .edit-cancel{background:var(--paper-line);color:var(--ink);}
-  .checkpoints{display:flex;gap:6px;margin:8px 0 12px;}
+  .checkpoints{display:flex;gap:4px;margin:8px 0 12px;flex-wrap:wrap;}
+  .checkpoints .cp{min-width:40px;}
+  .cfld-row{display:flex;gap:8px;margin:6px 0;}.cfld-row label{flex:1;font-size:11px;color:var(--ink-soft);}
+  .cfld-row select,textarea.cfld{width:100%;padding:6px;border-radius:6px;border:1.5px solid var(--paper-line);background:var(--bg);color:var(--ink);font:inherit;font-size:12px;}textarea.cfld{min-height:44px;}
   .cp{flex:1;padding:8px 3px;border-radius:8px;border:1.5px solid var(--paper-line);background:var(--bg);text-align:center;cursor:pointer;}
   .cp-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;font-weight:600;color:var(--ink-soft);}
   .cp-date{font-size:9px;color:var(--ink-soft);margin-top:2px;}
@@ -531,6 +540,8 @@ html[data-theme=bulles] body::before{content:"";position:fixed;inset:0;pointer-e
     <div class="tab" data-view="td">TD</div>
     <div class="tab" data-view="stages">Stages</div>
     <div class="tab" data-view="qcm">QCM</div>
+    <div class="tab" data-view="notes">Notes</div>
+    <div class="tab" data-view="comp">Compétences</div>
     <div class="tab" data-view="planning">Planning</div>
     <div class="tab" data-view="bilan">Bilan</div>
     <div class="tab" data-view="methodes">Méthodes</div>
@@ -797,6 +808,9 @@ html[data-theme=bulles] body::before{content:"";position:fixed;inset:0;pointer-e
       <div id="qcmJournal"></div>
     </div>
   </div>
+
+  <div class="view" id="view-notes"></div>
+  <div class="view" id="view-comp"></div>
 
   <div class="view" id="view-planning">
     <div class="day-label">Générateur de planning</div>
@@ -1297,7 +1311,7 @@ async function renderBilan(){
 
 function render(){
   buildDayNav();
-  ['dashboard','schedule','tracker','suivi','td','stages','qcm','planning','bilan','methodes','conseils'].forEach(v=>{
+  ['dashboard','schedule','tracker','suivi','td','stages','qcm','notes','comp','planning','bilan','methodes','conseils'].forEach(v=>{
     document.getElementById('view-'+v).classList.toggle('active', currentView===v);
   });
   document.getElementById('daynav').style.display = (currentView==='schedule' || currentView==='tracker') ? 'flex' : 'none';
@@ -1308,6 +1322,8 @@ function render(){
   else if(currentView==='td') renderTD();
   else if(currentView==='stages') renderStages();
   else if(currentView==='qcm') renderQCM();
+  else if(currentView==='notes') renderNotes();
+  else if(currentView==='comp') renderComp();
   else if(currentView==='bilan') renderBilan();
 }
 
@@ -1324,12 +1340,10 @@ document.querySelectorAll('.tab').forEach(tab=>{
    SUIVI DES COURS (J+0 / J+3 / J+7 / J+30 — Méthode 5)
    ========================================================= */
 const METHODS = ['Fiche de Flux', 'Tableau Blanc J+3', 'Auto-test QCM', 'Carnet de Liaison', 'Grille Inversée (gestes)', 'Spaced Repetition', 'Autre'];
-const CP_DEFS = [
-  { key:'j0', label:'J+0', offset:0, minutes:45 },
-  { key:'j3', label:'J+3', offset:3, minutes:20 },
-  { key:'j7', label:'J+7', offset:7, minutes:10 },
-  { key:'j30', label:'J+30', offset:30, minutes:5 },
-];
+const CP_ALL = [['j0',0,45],['j1',1,10],['j2',2,10],['j3',3,20],['j7',7,10],['j15',15,10],['j21',21,5],['j30',30,5]];
+function revCfg(){ let c={}; try{ c = JSON.parse(localStorage.getItem('rev:cfg')||'{}'); }catch(e){}
+  return CP_ALL.map(([k,o,mi])=>{ const x=c[k]||{}; const off = x.off!=null ? +x.off : o; return { key:k, label:'J+'+off, offset:off, minutes: x.min!=null ? +x.min : mi, on: !(x.on===0||x.on===false) }; }).filter(x=>x.on); }
+const CP_DEFS = revCfg(); // intervalles personnalisables depuis Routine > Réglages
 
 let courses = [];
 let suiviFilter = 'all';
@@ -1355,6 +1369,10 @@ function loadCourses(){
     const raw = localStorage.getItem('courses');
     courses = raw ? JSON.parse(raw) : [];
     courses.forEach(c=>{ if(c.notes===undefined) c.notes=''; if(!c.ue) c.ue=''; });
+    // migration : les nouveaux jalons (J+1, J+2, J+15, J+21) déjà passés pour d'anciens cours sont considérés comme sautés
+    let ch=false; const t0=todayStr();
+    courses.forEach(c=>{ c.checkpoints=c.checkpoints||{}; CP_ALL.forEach(([k,o])=>{ if(c.checkpoints[k]===undefined && c.dateAdded){ c.checkpoints[k] = addDaysStr(c.dateAdded,o) < t0; ch=true; } }); });
+    if(ch) localStorage.setItem('courses', JSON.stringify(courses));
   }catch(e){ courses = []; }
 }
 function saveCourses(){
@@ -1402,7 +1420,7 @@ document.getElementById('addCourseBtn').onclick = ()=>{
   const id = 'c'+Date.now();
   courses.unshift({
     id, name, ue, dateAdded: date,
-    checkpoints: { j0:false, j3:false, j7:false, j30:false },
+    checkpoints: { j0:false, j1:false, j2:false, j3:false, j7:false, j15:false, j21:false, j30:false },
     revisions: [], notes: ''
   });
   expanded[id] = true;
@@ -1515,6 +1533,10 @@ function buildCourseCard(course, urgency){
         <select class="revMethod">${methodOptions}</select>
         <button class="revAddBtn" data-course="${course.id}">+</button>
       </div>
+      <div class="cfld-row"><label>Difficulté perçue<select class="cfld" data-course="${course.id}" data-f="diff">${['','Facile','Moyenne','Difficile'].map(v=>`<option ${course.diff===v?'selected':''}>${v}</option>`).join('')}</select></label><label>Maîtrise (0-5)<select class="cfld" data-course="${course.id}" data-f="maitrise">${['','0','1','2','3','4','5'].map(v=>`<option ${String(course.maitrise??'')===v?'selected':''}>${v}</option>`).join('')}</select></label></div>
+      ${(course.histMaitrise||[]).length?`<div class="rev-meta" style="margin:2px 0 6px">Historique de maîtrise : ${course.histMaitrise.slice(-6).map(h=>fmtShort(h.date)+' → '+h.v).join(' · ')}</div>`:''}
+      <div class="notes-label">Erreurs récurrentes</div>
+      <textarea class="cfld" data-course="${course.id}" data-f="erreurs" placeholder="Pièges, confusions qui reviennent...">${course.erreurs||''}</textarea>
       <div class="notes-label">Notes</div>
       <textarea class="notes-area" data-course="${course.id}" placeholder="Points à revoir, difficultés, questions pour la formatrice...">${course.notes||''}</textarea>
     </div>`;
@@ -1522,6 +1544,12 @@ function buildCourseCard(course, urgency){
 }
 
 function attachCourseCardEvents(box){
+  box.querySelectorAll('.cfld').forEach(el=>{
+    el.onclick = (e)=>e.stopPropagation();
+    el.onchange = ()=>{ const c=courses.find(x=>x.id===el.dataset.course); if(!c) return; c[el.dataset.f]=el.value;
+      if(el.dataset.f==='maitrise' && el.value!==''){ c.histMaitrise=c.histMaitrise||[]; c.histMaitrise.push({date:todayStr(),v:+el.value}); }
+      saveCourses(); if(el.dataset.f!=='erreurs') renderSuivi(); };
+  });
   box.querySelectorAll('[data-toggle]').forEach(h=>{
     h.onclick = (e)=>{
       if(e.target.closest('.icon-btn')) return;
@@ -1634,10 +1662,10 @@ document.getElementById('exportBtn').onclick = ()=>{
   const data = {};
   for(let i=0;i<localStorage.length;i++){
     const k = localStorage.key(i);
-    if(k.startsWith('test:')) continue;
+    if(FOREIGN(k)) continue;
     data[k] = localStorage.getItem(k);
   }
-  data._meta = JSON.stringify({app:'Multi-DA', ver:'v15', date:todayStr()});
+  data._meta = JSON.stringify({app:'Multi-DA', ver:'v17', date:todayStr()});
   const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1658,17 +1686,14 @@ document.getElementById('importFile').addEventListener('change', (e)=>{
   reader.onload = (ev)=>{
     try{
       const data = JSON.parse(ev.target.result);
-      const ok = confirm("Importer ce fichier va remplacer les données de Multi-DA (cours, QCM, tracker, planning...). Les données des environnements TEST sont conservées. Une sauvegarde de l'état actuel sera téléchargée avant. Continuer ?");
+      const ok = confirm("Importer ce fichier va remplacer les données de Multi-DA (cours, QCM, tracker, planning...). Les données de Routine et de LIFE-PROJECT ne sont pas touchées. Une sauvegarde de l'état actuel sera téléchargée avant. Continuer ?");
       if(!ok){ e.target.value=''; return; }
       if(!data || typeof data!=='object' || Array.isArray(data)) throw new Error('invalid');
-      try{ const cur={}; for(let q=0;q<localStorage.length;q++){ const k=localStorage.key(q); if(!k.startsWith('test:')) cur[k]=localStorage.getItem(k); }
+      const own = ()=>{ const o=[]; for(let q=0;q<localStorage.length;q++){ const k=localStorage.key(q); if(!FOREIGN(k)) o.push(k); } return o; };
+      try{ const cur={}; own().forEach(k=>cur[k]=localStorage.getItem(k));
         const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(cur)],{type:'application/json'})); a.download='multi-da-avant-restauration-'+todayStr()+'.json'; document.body.appendChild(a); a.click(); a.remove(); }catch(e){}
-      const keep = {};
-      for(let q=0;q<localStorage.length;q++){ const k=localStorage.key(q); if(k.startsWith('test:')) keep[k]=localStorage.getItem(k); }
-      ['routine:v1','majorpromo_v3','da-theme'].forEach(k=>{ if(!(k in data)){ const v = localStorage.getItem(k); if(v!==null) keep[k]=v; } });
-      localStorage.clear();
-      Object.keys(keep).forEach(k=> localStorage.setItem(k, keep[k]));
-      Object.keys(data).forEach(k=>{ if(k==='_meta' || k.startsWith('test:')) return; localStorage.setItem(k, data[k]); });
+      own().forEach(k=> localStorage.removeItem(k));
+      Object.keys(data).forEach(k=>{ if(k==='_meta' || FOREIGN(k)) return; localStorage.setItem(k, data[k]); });
       alert('Import réussi. La page va se recharger.');
       location.reload();
     }catch(err){
@@ -1877,10 +1902,11 @@ if (window.pdfjsLib) {
 
 const DAY_NAME_MAP = {
   'lundi':'lundi', 'mardi':'mardi', 'mercredi':'mercredi', 'jeudi':'jeudi',
-  'vendredi':'vendredi', 'samedi':'samedi', 'dimanche':'dimanche'
+  'vendredi':'vendredi', 'samedi':'samedi', 'dimanche':'dimanche',
+  'lun':'lundi', 'mar':'mardi', 'mer':'mercredi', 'jeu':'jeudi', 'ven':'vendredi', 'sam':'samedi', 'dim':'dimanche'
 };
-const TIME_RANGE_RE = /(\d{1,2})[h:eEhH](\d{2})?\s*(?:[-–—à]{1,2})\s*(\d{1,2})[h:eEhH](\d{2})?/;
-const DAY_LINE_RE = /^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)\b/i;
+const TIME_RANGE_RE = /(\d{1,2})\s?[h:.eEhH]\s?(\d{2})?\s*(?:[-–—→/]|à|a)\s*(\d{1,2})\s?[h:.eEhH]\s?(\d{2})?/;
+const DAY_LINE_RE = /^(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|lun|mar|mer|jeu|ven|sam|dim)\.?(?=[\s\d]|$)/i;
 
 let pdfParsedSchedule = null;
 
@@ -1933,7 +1959,7 @@ function parseScheduleFromLines(lines){
     const timeMatch = line.match(TIME_RANGE_RE);
     if(timeMatch){
       const t = normalizeTime(timeMatch[1], timeMatch[2], timeMatch[3], timeMatch[4]);
-      const title = line.replace(TIME_RANGE_RE, '').replace(/^[\s:.\-–—]+/, '').trim();
+      const title = line.replace(TIME_RANGE_RE, '').replace(/^(?:de\s+|[\s:.\-–—|]+)+/i, '').trim();
       result[currentDay].push({ t, title: title || '(titre à compléter)' });
     }
   });
@@ -2345,7 +2371,7 @@ function rapportBlockHtml(stage){
         <textarea class="notes-area" data-stagefield="rapportTexte" data-stage="${id}" placeholder="Ou rédige / colle ton rapport (ou ses notes) ici…" style="margin-top:8px;">${esc2(stage.rapportTexte||'')}</textarea>
       </div>`;
 }
-function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('programme-major-files',1); r.onupgradeneeded=()=>r.result.createObjectStore('f'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open((TESTM?'test:':'')+'programme-major-files',1); r.onupgradeneeded=()=>r.result.createObjectStore('f'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
 function idbPut(k,v){ return idb().then(d=>new Promise((res,rej)=>{ const t=d.transaction('f','readwrite'); t.objectStore('f').put(v,k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); })); }
 function idbGet(k){ return idb().then(d=>new Promise((res,rej)=>{ const r=d.transaction('f').objectStore('f').get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); })); }
 function idbDel(k){ return idb().then(d=>new Promise((res,rej)=>{ const t=d.transaction('f','readwrite'); t.objectStore('f').delete(k); t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); })); }
@@ -2892,16 +2918,111 @@ b.addEventListener("contextmenu",function(e){e.preventDefault()});
 document.addEventListener("click",function(e){if(!mn.contains(e.target)&&!b.contains(e.target))mn.classList.remove("open");
 var l=e.target.closest&&e.target.closest("[data-foldtoggle]");if(l){var sec=l.closest("[data-stagefold]");if(sec){sec.classList.toggle("folded");try{var o=JSON.parse(localStorage.getItem("stage-folds")||"{}"),k=sec.getAttribute("data-stagefold")+":"+sec.getAttribute("data-foldkey");if(sec.classList.contains("folded"))o[k]=1;else delete o[k];localStorage.setItem("stage-folds",JSON.stringify(o))}catch(x){}}}});
 apply(cur(),false)})();</script>
-<script>function ecoCore(me){var TEST=/test/i.test(location.pathname),O=location.origin;
-var A=[['routine','⏱️','Routine',TEST?'/TEST-ROUTINE-TEST/':'/Routine/'],['multi','📚',TEST?'Multi-DA (prod)':'Multi-DA','/Multi-DA/'],['life','🎯','LIFE-PROJECT',TEST?'/TEST-LIFEPROJECT-TEST/':'/LIFE-PROJECT-LASR/']];
-function st(id){try{var P=TEST?'test:':'';
-if(id=='multi'){if(TEST)return'Non lié (TEST)';return localStorage.getItem('courses')!==null?'Synchronisé':'Non connecté'}
-if(id=='routine')return localStorage.getItem(P+'routine:v1')!==null?'Synchronisé':'Non connecté';
-var l=localStorage.getItem(P+'majorpromo_v3');if(l===null)return'Non connecté';var s=JSON.parse(l)._saved;return s&&Date.now()-s>6048e5?'Données anciennes':'Synchronisé'}catch(e){return'Erreur'}}
-function html(){return A.map(function(a){var s=a[0]==me?'ici':st(a[0]),c=s=='Synchronisé'?'ok':s=='ici'?'cur':s=='Données anciennes'?'old':s=='Erreur'?'err':'off';return'<a class="eco-i '+c+'" href="'+(a[0]==me?'#':O+a[3])+'"><span>'+a[1]+'</span><b>'+a[2]+'</b><em>'+s+'</em></a>'}).join('')}
-return{A:A,st:st,html:html,TEST:TEST}}
+
+<script>(function(){
+const $=id=>document.getElementById(id),esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function ld(k,d){try{const r=localStorage.getItem(k);return r?JSON.parse(r):d}catch(e){return d}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true}catch(e){alert('Enregistrement impossible : stockage plein ou bloqué. Exporte tes données maintenant.');return false}}
+const SEMS=['S1','S2','S3','S4','S5','S6'],TYPES=['Théorique','Pratique','Oral','Stage','Autre'];
+let NOTES=ld('notes',[]),NCFG=ld('notes:cfg',{s:'ects'}),editN=null;
+const byD=(a,b)=>(b.date||'').localeCompare(a.date||'');
+const wOf=e=>+e.coef>0?+e.coef:1;
+const avgW=a=>{const c=a.reduce((t,e)=>t+wOf(e),0);return c?a.reduce((t,e)=>t+ +e.note*wOf(e),0)/c:null};
+function ueTable(list){const m={};list.forEach(e=>{const k=e.ue||'Sans UE';(m[k]=m[k]||[]).push(e)});return Object.keys(m).map(k=>({ue:k,n:m[k].length,avg:avgW(m[k]),ects:Math.max(0,...m[k].map(e=>+e.ects||0)),coef:m[k].reduce((t,e)=>t+wOf(e),0),sem:m[k][0].sem}))}
+function groupAvg(list){const u=ueTable(list);if(!u.length)return{avg:null,note:''};let mode=NCFG.s,note='';if(mode=='ects'&&u.some(x=>!(x.ects>0))){mode='equal';note='ECTS manquants : poids égal par UE.'}
+const w=x=>mode=='ects'?x.ects:mode=='coef'?x.coef:1,sw=u.reduce((t,x)=>t+w(x),0);return{avg:sw?u.reduce((t,x)=>t+x.avg*w(x),0)/sw:null,note}}
+const done=()=>NOTES.filter(e=>e.statut!=='À venir'&&e.note!==''&&e.note!=null&&!isNaN(+e.note));
+const fmt=v=>v==null?'—':v.toFixed(2);
+window.getNotesSummary=function(){const d=done(),sems=SEMS.map(s=>({s,...groupAvg(d.filter(e=>e.sem==s)),n:d.filter(e=>e.sem==s).length}));return{sems,all:groupAvg(d).avg,ue:ueTable(d)}};
+function topPct(e){return +e.rang>0&&+e.eff>0?Math.max(1,Math.round(+e.rang/+e.eff*100)):null}
+window.renderNotes=function(){
+ const d=done(),up=NOTES.filter(e=>e.statut==='À venir').sort((a,b)=>(a.date||'9').localeCompare(b.date||'9')),ues=ueTable(d),ev=editN?NOTES.find(x=>x.id===editN):null,v=k=>esc(ev?ev[k]:'');
+ const sems=SEMS.map(s=>({s,...groupAvg(d.filter(e=>e.sem==s))})),years=[1,2,3].map(y=>({y,...groupAvg(d.filter(e=>e.sem==SEMS[2*y-2]||e.sem==SEMS[2*y-1]))}));
+ const all=groupAvg(d).avg,rk=d.filter(e=>topPct(e)!=null).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+ const bars=sems.map((x,i)=>{const h=x.avg==null?0:x.avg*3.6;return `<rect x="${i*50+8}" y="${76-h}" width="34" height="${h}" rx="3" fill="${x.avg>=14?'#2e8b57':x.avg>=10?'#d08a1a':'#c0392b'}"/><text x="${i*50+25}" y="${72-h}" font-size="9" text-anchor="middle" fill="currentColor">${x.avg==null?'':x.avg.toFixed(1)}</text><text x="${i*50+25}" y="89" font-size="9" text-anchor="middle" fill="currentColor">${x.s}</text>`}).join('');
+ const spark=rk.length>1?(()=>{const pts=rk.map((e,i)=>[10+i*(280/(rk.length-1)),70-(100-topPct(e))/100*60]);return `<svg viewBox="0 0 300 80" width="100%"><polyline fill="none" stroke="var(--teal)" stroke-width="2" points="${pts.map(p=>p.join(',')).join(' ')}"/>${pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="var(--teal)"/>`).join('')}</svg><div class="hint">Évolution du classement (plus c’est haut, meilleur est le rang) : ${rk.map(e=>'top '+topPct(e)+' %').join(' → ')}</div>`})():'<div class="hint">Ajoute au moins deux notes avec rang et effectif pour voir l’évolution.</div>';
+ const weak=ues.filter(x=>x.avg<10||x.avg<12).sort((a,b)=>a.avg-b.avg).slice(0,6);
+ $('view-notes').innerHTML=`<div class="day-label">Notes & Classement</div><p class="hint">Saisie unique : LIFE-PROJECT lit ces notes. ECTS = crédits de l’UE (même valeur sur toutes ses lignes). Coefficient = poids de l’évaluation dans l’UE.</p>
+ <div class="stats-bar"><div class="stat"><div class="n">${fmt(all)}</div><div class="l">moyenne /20</div></div><div class="stat due"><div class="n">${d.length}</div><div class="l">notes</div></div><div class="stat total"><div class="n">${up.length}</div><div class="l">à venir</div></div></div>
+ <div class="add-panel"><div class="add-panel-label">${ev?'Modifier la note':'Ajouter une note ou une évaluation'}</div><div class="add-fields">
+ <input type="text" id="nf_ue" placeholder="UE (ex: UE 2.1)" value="${v('ue')}"><input type="text" id="nf_int" placeholder="Intitulé de l’épreuve" value="${v('intitule')}">
+ <select id="nf_sem">${SEMS.map(s=>`<option ${ev&&ev.sem==s?'selected':''}>${s}</option>`).join('')}</select><select id="nf_type">${TYPES.map(s=>`<option ${ev&&ev.type==s?'selected':''}>${s}</option>`).join('')}</select>
+ <select id="nf_st"><option>Réalisée</option><option ${ev&&ev.statut==='À venir'?'selected':''}>À venir</option></select>
+ <input type="number" step="0.01" min="0" max="20" id="nf_note" placeholder="Note /20" value="${v('note')}"><input type="number" step="0.1" min="0" id="nf_coef" placeholder="Coefficient (vide = 1)" value="${v('coef')}"><input type="number" step="0.5" min="0" id="nf_ects" placeholder="ECTS de l’UE" value="${v('ects')}">
+ <input type="number" min="1" id="nf_rang" placeholder="Rang" value="${v('rang')}"><input type="number" min="1" id="nf_eff" placeholder="Effectif promo" value="${v('eff')}"><input type="date" id="nf_date" value="${ev?esc(ev.date):new Date().toISOString().slice(0,10)}">
+ <button class="add-btn" id="nf_add">${ev?'✓ Enregistrer':'+ Ajouter'}</button>${ev?'<button class="add-btn" style="background:var(--ink-soft)" id="nf_cancel">Annuler</button>':''}</div></div>
+ <div class="dash-card"><div class="dash-label">Pondération de la moyenne de semestre</div><select id="nf_w" style="width:100%;padding:8px;border-radius:8px"><option value="ects" ${NCFG.s=='ects'?'selected':''}>Moyennes d’UE pondérées par les ECTS</option><option value="coef" ${NCFG.s=='coef'?'selected':''}>Moyennes d’UE pondérées par la somme des coefficients</option><option value="equal" ${NCFG.s=='equal'?'selected':''}>Toutes les UE à poids égal</option></select><div class="hint">La moyenne d’une UE = moyenne de ses évaluations pondérée par leurs coefficients. Vérifie la règle exacte dans le règlement de ton IFSI.</div></div>
+ <div class="dash-card"><div class="dash-label">Moyenne par semestre</div><svg viewBox="0 0 300 94" width="100%"><line x1="0" x2="300" y1="40" y2="40" stroke="currentColor" stroke-dasharray="3" opacity=".4"/>${bars}</svg>${sems.filter(x=>x.note).map(x=>`<div class="hint">${x.s} : ${x.note}</div>`).join('')}<div class="hint">${years.filter(y=>y.avg!=null).map(y=>'Année '+y.y+' : '+y.avg.toFixed(2)).join(' · ')||'Moyennes annuelles : à venir.'}</div></div>
+ <div class="dash-card"><div class="dash-label">Moyenne par UE</div>${ues.sort((a,b)=>a.sem.localeCompare(b.sem)||a.ue.localeCompare(b.ue)).map(x=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px dashed var(--paper-line)"><span>${esc(x.sem)} · ${esc(x.ue)} <small>(${x.n} éval., ${x.ects?x.ects+' ECTS':'ECTS ?'})</small></span><b style="color:${x.avg<10?'#c0392b':'inherit'}">${x.avg.toFixed(2)}</b></div>`).join('')||'<div class="hint">Aucune note.</div>'}</div>
+ <div class="dash-card"><div class="dash-label">UE à consolider</div>${weak.map(x=>`<div class="hint">⚠ ${esc(x.ue)} : ${x.avg.toFixed(2)}/20${x.avg<10?' (sous 10)':''}</div>`).join('')||'<div class="hint">Aucune UE fragile détectée.</div>'}</div>
+ <div class="dash-card"><div class="dash-label">Classement</div>${spark}</div>
+ <div class="dash-card"><div class="dash-label">Évaluations à venir</div>${up.map(e=>`<div class="hint">📅 ${esc(e.date||'date ?')} · ${esc(e.ue)} ${esc(e.intitule||'')} (${esc(e.type)})</div>`).join('')||'<div class="hint">Rien de planifié.</div>'}</div>
+ <div class="dash-card"><div class="dash-label">Toutes les lignes</div>${NOTES.slice().sort(byD).map(e=>`<div style="display:flex;justify-content:space-between;gap:6px;padding:6px 0;border-top:1px dashed var(--paper-line);font-size:13px"><span>${esc(e.sem)} · ${esc(e.ue)} ${esc(e.intitule||'')} <small>· ${esc(e.type)} · coef ${esc(e.coef||1)}${e.ects?' · '+esc(e.ects)+' ECTS':''}${topPct(e)?' · top '+topPct(e)+' %':''} · ${esc(e.date||'')}</small></span><span><b>${e.statut==='À venir'?'à venir':esc(e.note)+'/20'}</b> <span data-ne="${e.id}" style="cursor:pointer">✎</span> <span data-nd="${e.id}" style="cursor:pointer">✕</span></span></div>`).join('')||'<div class="hint">Rien pour l’instant.</div>'}</div>`;
+ $('nf_w').onchange=e=>{NCFG.s=e.target.value;sv('notes:cfg',NCFG);renderNotes()};
+ $('nf_add').onclick=()=>{const g=i=>$(i).value.trim(),st=g('nf_st'),o={id:editN||'n'+Date.now(),ue:g('nf_ue'),intitule:g('nf_int'),sem:g('nf_sem'),type:g('nf_type'),statut:st,note:g('nf_note'),coef:g('nf_coef'),ects:g('nf_ects'),rang:g('nf_rang'),eff:g('nf_eff'),date:g('nf_date')};
+  if(!o.ue){alert('Indique l’UE.');return}if(st==='Réalisée'&&(o.note===''||+o.note<0||+o.note>20)){alert('Note entre 0 et 20 requise pour une évaluation réalisée.');return}
+  if(o.rang&&o.eff&&+o.rang>+o.eff){alert('Le rang ne peut pas dépasser l’effectif.');return}
+  if(!editN&&NOTES.some(x=>x.ue==o.ue&&x.intitule==o.intitule&&x.type==o.type&&x.date==o.date)&&!confirm('Une ligne identique existe déjà. Ajouter quand même ?'))return;
+  if(editN)NOTES=NOTES.map(x=>x.id===editN?o:x);else NOTES.unshift(o);editN=null;if(sv('notes',NOTES))renderNotes()};
+ if($('nf_cancel'))$('nf_cancel').onclick=()=>{editN=null;renderNotes()};
+ document.querySelectorAll('[data-ne]').forEach(el=>el.onclick=()=>{editN=el.dataset.ne;renderNotes();window.scrollTo(0,0)});
+ document.querySelectorAll('[data-nd]').forEach(el=>el.onclick=()=>{if(confirm('Supprimer cette ligne ?')){NOTES=NOTES.filter(x=>x.id!==el.dataset.nd);sv('notes',NOTES);renderNotes()}})};
+/* ---- 10 compétences infirmières ---- */
+const COMP=['Évaluer une situation clinique et établir un diagnostic dans le domaine infirmier','Concevoir et conduire un projet de soins infirmiers','Accompagner une personne dans la réalisation de ses soins quotidiens','Mettre en œuvre des actions à visée diagnostique et thérapeutique','Initier et mettre en œuvre des soins éducatifs et préventifs','Communiquer et conduire une relation dans un contexte de soins','Analyser la qualité des soins et améliorer sa pratique professionnelle','Rechercher et traiter des données professionnelles et scientifiques','Organiser et coordonner des interventions soignantes','Informer, former des professionnels et des personnes en formation'];
+const LV=['Non abordée','Notions','En cours d’acquisition','Acquise avec aide','Autonome'];
+let C10=ld('comp10',{});const cget=n=>C10[n]=C10[n]||{auto:0,tut:0,date:'',crit:'',restant:'',proofs:[]};
+const validated=n=>{const c=cget(n);return c.tut>=3&&!!c.date};
+window.getCompSummary=function(){return COMP.map((t,i)=>{const c=cget(i+1);return{n:i+1,t,auto:c.auto,tut:c.tut,date:c.date,proofs:c.proofs.length,validated:validated(i+1)}})};
+window.renderComp=function(){
+ const nv=COMP.filter((_,i)=>validated(i+1)).length,stages={};COMP.forEach((_,i)=>cget(i+1).proofs.forEach(p=>{const k=p.stage||'Sans stage';(stages[k]=stages[k]||[]).push({n:i+1,v:p.val})}));
+ $('view-comp').innerHTML=`<div class="day-label">10 compétences infirmières</div><p class="hint">Autoévaluation, évaluation du tuteur, preuves de stage. « Validée » = niveau tuteur ≥ 3 avec une date de validation. LIFE-PROJECT lit cette synthèse.</p>
+ <div class="stats-bar"><div class="stat"><div class="n">${nv}/10</div><div class="l">validées</div></div><div class="stat due"><div class="n">${COMP.filter((_,i)=>cget(i+1).auto>cget(i+1).tut).length}</div><div class="l">auto > tuteur</div></div><div class="stat total"><div class="n">${COMP.reduce((t,_,i)=>t+cget(i+1).proofs.length,0)}</div><div class="l">preuves</div></div></div>
+ ${COMP.map((t,i)=>{const n=i+1,c=cget(n);return `<details class="dash-card" ${c.proofs.length||c.auto?'':''}><summary style="cursor:pointer;font-weight:600">${n}. ${esc(t)} ${validated(n)?'✅':''}<br><small style="font-weight:400">Auto : ${LV[c.auto]} · Tuteur : ${LV[c.tut]}${c.date?' · validée le '+esc(c.date):''}</small></summary>
+ <div style="display:grid;gap:6px;margin-top:8px"><label class="hint">Autoévaluation<select data-c="${n}" data-f="auto">${LV.map((l,k)=>`<option value="${k}" ${c.auto==k?'selected':''}>${k} · ${l}</option>`).join('')}</select></label>
+ <label class="hint">Évaluation du tuteur<select data-c="${n}" data-f="tut">${LV.map((l,k)=>`<option value="${k}" ${c.tut==k?'selected':''}>${k} · ${l}</option>`).join('')}</select></label>
+ <label class="hint">Date de validation<input type="date" data-c="${n}" data-f="date" value="${esc(c.date)}"></label>
+ <label class="hint">Critères d’acquisition (d’après ton portfolio)<textarea data-c="${n}" data-f="crit" rows="2">${esc(c.crit)}</textarea></label>
+ <label class="hint">Reste à travailler<textarea data-c="${n}" data-f="restant" rows="2">${esc(c.restant)}</textarea></label>
+ <div class="dash-label">Preuves et validations</div>${c.proofs.map((p,k)=>`<div class="hint">${esc(p.stage||'?')} · ${esc(p.date||'')} · ${esc(p.desc)} ${p.val?'✔ validé par le tuteur':''} <span data-cpd="${n}:${k}" style="cursor:pointer">✕</span></div>`).join('')||'<div class="hint">Aucune preuve.</div>'}
+ <div class="add-fields"><input type="text" id="cp${n}s" placeholder="Stage (ex: Cardiologie)"><input type="date" id="cp${n}d"><input type="text" id="cp${n}t" placeholder="Situation / soin / preuve"><label class="hint"><input type="checkbox" id="cp${n}v"> validée par le tuteur</label><button class="add-btn" data-cpa="${n}">+ Preuve</button></div></div></details>`}).join('')}
+ <div class="dash-card"><div class="dash-label">Bilan par stage</div>${Object.keys(stages).map(k=>`<div class="hint"><b>${esc(k)}</b> : ${stages[k].length} preuve(s), ${stages[k].filter(x=>x.v).length} validée(s) · compétences ${[...new Set(stages[k].map(x=>x.n))].join(', ')}</div>`).join('')||'<div class="hint">Les preuves ajoutées apparaîtront ici par stage.</div>'}</div>`;
+ document.querySelectorAll('#view-comp [data-f]').forEach(el=>el.onchange=()=>{const c=cget(+el.dataset.c);c[el.dataset.f]=['auto','tut'].includes(el.dataset.f)?+el.value:el.value;sv('comp10',C10);if(['auto','tut','date'].includes(el.dataset.f))renderComp()});
+ document.querySelectorAll('[data-cpa]').forEach(b=>b.onclick=()=>{const n=b.dataset.cpa,d=$('cp'+n+'t').value.trim();if(!d){alert('Décris la preuve.');return}cget(+n).proofs.push({stage:$('cp'+n+'s').value.trim(),date:$('cp'+n+'d').value,desc:d,val:$('cp'+n+'v').checked});sv('comp10',C10);renderComp()});
+ document.querySelectorAll('[data-cpd]').forEach(b=>b.onclick=()=>{const [n,k]=b.dataset.cpd.split(':');cget(+n).proofs.splice(+k,1);sv('comp10',C10);renderComp()})};
+/* ---- QCM : analyses avancées ---- */
+const _rq=window.renderQCM;window.renderQCM=function(){_rq();try{advQcm()}catch(e){console.error(e)}};
+function advQcm(){let box=$('qcmAdv');if(!box){box=document.createElement('div');box.id='qcmAdv';$('qcmUEBreakdown').parentNode.appendChild(box)}
+const E=qcmEntries.filter(e=>e.total>0);if(!E.length){box.innerHTML='';return}const pc=(a,b)=>b?Math.round(a/b*100):0;
+const wk=[];for(let i=7;i>=0;i--){const a=new Date(Date.now()-(i*7+6)*864e5).toISOString().slice(0,10),b=new Date(Date.now()-i*7*864e5).toISOString().slice(0,10),L=E.filter(e=>e.date>=a&&e.date<=b);wk.push(L.length?pc(L.reduce((t,e)=>t+e.correct,0),L.reduce((t,e)=>t+e.total,0)):null)}
+const ch={};E.forEach(e=>{const k=e.chapter||'Sans chapitre';(ch[k]=ch[k]||{t:0,c:0,n:0,h:[]});ch[k].t+=e.total;ch[k].c+=e.correct;ch[k].n++;ch[k].h.push(pc(e.correct,e.total))});
+const rows=Object.keys(ch).map(k=>({k,p:pc(ch[k].c,ch[k].t),n:ch[k].n,h:ch[k].h,t:ch[k].t})),weak=rows.filter(r=>r.p<70).sort((a,b)=>a.p-b.p),rec=rows.filter(r=>r.n>=2&&r.p<60);
+const tags={};E.forEach(e=>(Array.isArray(e.tags)?e.tags:String(e.tags||'').split(',')).map(x=>x.trim()).filter(Boolean).forEach(t=>{tags[t]=tags[t]||{t:0,c:0};tags[t].t+=e.total;tags[t].c+=e.correct}));
+const tw=Object.keys(tags).map(k=>({k,p:pc(tags[k].c,tags[k].t)})).filter(x=>x.p<70).sort((a,b)=>a.p-b.p).slice(0,6);
+const ue={};E.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).forEach(e=>{const k=e.ue||'Sans UE';(ue[k]=ue[k]||[]).push(pc(e.correct,e.total))});
+const trend=Object.keys(ue).filter(k=>ue[k].length>=2).map(k=>{const h=Math.ceil(ue[k].length/2),f=ue[k].slice(0,h),s=ue[k].slice(h),m=a=>a.reduce((t,x)=>t+x,0)/a.length;return{k,d:Math.round(m(s)-m(f))}});
+const link=r=>{const c=(typeof courses!=='undefined'?courses:[]).find(c=>c.name===r.k);if(!c)return'';const n=nextDueCheckpoint(c);return n?` — cours lié : prochain jalon ${n.cp.label}${n.overdue?' (en retard)':''}`:' — cours lié : tous les jalons faits'};
+const mx=100;box.innerHTML=`<div class="dash-card"><div class="dash-label">📈 Progression hebdomadaire</div><svg viewBox="0 0 300 70" width="100%">${wk.map((v,i)=>`<rect x="${i*37+5}" y="${60-(v||0)*.5}" width="26" height="${(v||0)*.5}" rx="3" fill="var(--teal)" opacity="${v==null?.15:1}"/><text x="${i*37+18}" y="${56-(v||0)*.5}" font-size="9" text-anchor="middle" fill="currentColor">${v==null?'':v}</text>`).join('')}</svg><div class="hint">% de bonnes réponses sur les 8 dernières semaines.</div></div>
+<div class="dash-card"><div class="dash-label">🎯 Priorités de révision (chapitres sous 70 %)</div>${weak.slice(0,6).map(r=>`<div class="hint"><b>${esc(r.k)}</b> : ${r.p} % sur ${r.t} questions, ${r.n} tentative(s) [${r.h.join(' → ')}]${esc(link(r))}</div>`).join('')||'<div class="hint">Aucun chapitre sous 70 %.</div>'}</div>
+<div class="dash-card"><div class="dash-label">🔁 Erreurs récurrentes</div>${rec.map(r=>`<div class="hint">⚠ ${esc(r.k)} : toujours sous 60 % après ${r.n} tentatives</div>`).join('')||'<div class="hint">Aucun chapitre en échec répété.</div>'}${tw.length?'<div class="hint"><b>Thèmes à retravailler :</b> '+tw.map(x=>esc(x.k)+' ('+x.p+' %)').join(', ')+'</div>':''}</div>
+<div class="dash-card"><div class="dash-label">Tendance par UE</div>${trend.map(x=>`<div class="hint">${esc(x.k)} : ${x.d>=0?'+':''}${x.d} points (2e moitié vs 1re moitié)</div>`).join('')||'<div class="hint">Il faut au moins 2 séances par UE.</div>'}</div>`}
+/* ---- sommeil / énergie du tracker -> LIFE-PROJECT ---- */
+const LK='majorpromo_v3',ldate=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function syncSante(){try{const i=DAY_META.findIndex(d=>d.key===currentDay);if(i<0)return;const n=new Date(),dt=ldate(new Date(n.getFullYear(),n.getMonth(),n.getDate()-((n.getDay()+6)%7)+i,12)),data=cache[currentDay]||{},som=parseFloat(String($('sommeilInput').value||data.sommeil||'').replace(',','.')),en=data.energy;
+const D=ld(LK,{});D.sante=Array.isArray(D.sante)?D.sante:[];let x=D.sante.find(z=>z.date==dt);if(!x){if(!(som>0)&&!en)return;x={date:dt,som:'',en:'',sport:'Aucun',note:''};D.sante.unshift(x)}if(som>0&&som<=14)x.som=String(som);if(en)x.en=String(en);D._saved=Date.now();localStorage.setItem(LK,JSON.stringify(D))}catch(e){}}
+$('sommeilInput').addEventListener('change',syncSante);
+const _rt=window.renderTracker;window.renderTracker=async function(){await _rt();document.querySelectorAll('#energyScale .scale-btn').forEach(b=>{const o=b.onclick;b.onclick=()=>{o();setTimeout(syncSante,120)}})};
+})();
+</script>
+<script>function ecoCore(me){var TEST=/test/i.test(location.pathname),O=location.origin,P=TEST?'test:':'',LS=window.__rawLS||localStorage;
+var A=[['routine','⏱️','Routine',TEST?'/TEST-ROUTINE-TEST/':'/Routine/','routine:v1'],['multi','📚','Multi-DA',TEST?'/TEST-MULTI-DA-TEST/':'/Multi-DA/','courses'],['life','🎯','LIFE-PROJECT',TEST?'/TEST-LIFEPROJECT-TEST/':'/LIFE-PROJECT-LASR/','majorpromo_v3']];
+function fmt(t){var d=new Date(t),p=function(n){return String(n).padStart(2,'0')};return p(d.getDate())+'/'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes())}
+function touch(){try{LS.setItem(P+'eco:'+me,JSON.stringify({t:Date.now(),s:2}))}catch(e){}}
+function st(id){try{var a=A.filter(function(x){return x[0]==id})[0];if(LS.getItem(P+a[4])===null)return{k:'off',l:'Non connecté'};var e=JSON.parse(LS.getItem(P+'eco:'+id)||'null');if(!e)return{k:'ok',l:'Synchronisé'};return Date.now()-e.t>6048e5?{k:'old',l:'Données anciennes · '+fmt(e.t)}:{k:'ok',l:'Synchronisé · '+fmt(e.t)}}catch(x){return{k:'err',l:'Erreur'}}}
+function html(){return A.map(function(a){var s=a[0]==me?{k:'cur',l:'ici'}:st(a[0]);return'<a class="eco-i '+s.k+'" href="'+(a[0]==me?'#':O+a[3])+'"><span>'+a[1]+'</span><b>'+a[2]+'</b><em>'+s.l+'</em></a>'}).join('')}
+window.__ecoT=touch;if(!window['__eco_'+me]){window['__eco_'+me]=1;touch();window.addEventListener('pagehide',touch);document.addEventListener('visibilitychange',function(){if(document.hidden)touch()})}
+return{A:A,st:st,html:html,TEST:TEST,touch:touch}}
 function ecoFloat(me,bottom){if(document.getElementById('ecoBtn'))return;var E=ecoCore(me),s=document.createElement('style');
-s.textContent='#ecoBtn{position:fixed;left:12px;bottom:'+bottom+';z-index:9998;width:44px;height:44px;border-radius:50%;border:1px solid rgba(0,0,0,.25);background:#fff;font-size:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer}#ecoP{position:fixed;left:12px;bottom:calc('+bottom+' + 54px);z-index:9998;width:min(300px,calc(100vw - 24px));background:#fff;color:#1c2a27;border:1px solid #cfd8d4;border-radius:16px;padding:12px;box-shadow:0 8px 28px rgba(0,0,0,.35);display:none;font:13px system-ui,sans-serif}#ecoP.open{display:block}#ecoP h4{margin:0 0 8px;font-size:13px}.eco-i{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid #e1e8e5;margin-bottom:6px}.eco-i b{flex:1}.eco-i em{font-style:normal;font-size:11px;padding:2px 8px;border-radius:10px;background:#eee}.eco-i.ok em{background:#d6efdf;color:#1c6b3a}.eco-i.old em{background:#fbe9c8;color:#8a5a00}.eco-i.off em,.eco-i.err em{background:#f6d6d2;color:#9b2c1f}.eco-i.cur{background:#eef5f2;border-color:#2F6F63}';
+s.textContent='#ecoBtn{position:fixed;left:12px;bottom:'+bottom+';z-index:9998;width:44px;height:44px;border-radius:50%;border:1px solid rgba(0,0,0,.25);background:#fff;font-size:20px;box-shadow:0 2px 10px rgba(0,0,0,.35);cursor:pointer}#ecoP{position:fixed;left:12px;bottom:calc('+bottom+' + 54px);z-index:9998;width:min(320px,calc(100vw - 24px));background:#fff;color:#1c2a27;border:1px solid #cfd8d4;border-radius:16px;padding:12px;box-shadow:0 8px 28px rgba(0,0,0,.35);display:none;font:13px system-ui,sans-serif}#ecoP.open{display:block}#ecoP h4{margin:0 0 8px;font-size:13px}.eco-i{display:flex;align-items:center;gap:8px;padding:8px;border-radius:10px;text-decoration:none;color:inherit;border:1px solid #e1e8e5;margin-bottom:6px}.eco-i b{flex:1}.eco-i em{font-style:normal;font-size:10.5px;padding:2px 8px;border-radius:10px;background:#eee}.eco-i.ok em{background:#d6efdf;color:#1c6b3a}.eco-i.old em{background:#fbe9c8;color:#8a5a00}.eco-i.off em,.eco-i.err em{background:#f6d6d2;color:#9b2c1f}.eco-i.cur{background:#eef5f2;border-color:#2F6F63}';
 document.head.appendChild(s);var b=document.createElement('button');b.id='ecoBtn';b.title='Mon écosystème';b.textContent='🧭';var p=document.createElement('div');p.id='ecoP';p.innerHTML='<h4>Mon écosystème'+(E.TEST?' · <span style="color:#c0392b">TEST</span>':'')+'</h4>'+E.html()+'<p style="margin:6px 0 0;color:#66756f;font-size:11px">Les données se partagent dans le même navigateur, pas entre appareils. Exporte régulièrement.</p>';
 b.onclick=function(){p.classList.toggle('open')};document.body.appendChild(p);document.body.appendChild(b)}
 

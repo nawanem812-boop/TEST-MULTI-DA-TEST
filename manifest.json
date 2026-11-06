@@ -4,7 +4,7 @@
   "description": "Dashboard, suivi des cours, analytics QCM, planning et bilan personnel.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#F7D3E3",
   "theme_color": "#C8407F",
